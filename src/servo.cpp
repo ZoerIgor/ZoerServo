@@ -1,7 +1,5 @@
 #include "servo.h"
 
-#define PWM_RESOLUTION 1023
-
 Source::Source(byte pinPwm, byte pinControl)
 {
     _pinPwm = pinPwm;

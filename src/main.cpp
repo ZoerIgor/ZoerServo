@@ -17,7 +17,7 @@
 
 #define GYVER_PID_BIT_RESOLUTION 9
 #define GYVER_PID_CALCULATE_FREQUENCY 1
-#define GYVER_PID_MAX_PWM_RESOLUTION 1023
+#define GYVER_PID_MAX_PWM_RESOLUTION 511
 
 Source sourse(SOURSE_PIN_PWM, SOURSE_PIN_ENABLE);
 Encoder encoder(ENCODER_PIN_INPUT, ENCODER_PWM_RESOLUTION);
@@ -47,7 +47,7 @@ void setup()
 
 void loop()
 {
-    if (sourse.GetCommand() == EnumSourse::ENABLE) // Работа сервопривода разрешена из внешнего источника или из терминала
+    if (sourse.GetCommand() == EnumSourse::RESET) // Работа сервопривода разрешена из внешнего источника или из терминала
     {
         pid.setpoint = sourse.GetTargetDeg();
         pid.input = encoder.GetCurrentDeg();
@@ -100,9 +100,9 @@ void loop()
         driver.Enable(false);
         WriteEeprom(encoder.SetCalibAngle(sourse.GetTargetDeg() - encoder.GetCurrentDeg()));
     }
-    else if(sourse.GetCommand() == EnumSourse::RESET) // Сброс калибровочного угла энкодера
+    /* else if(sourse.GetCommand() == EnumSourse::RESET) // Сброс калибровочного угла энкодера
     {
         driver.Enable(false);
         WriteEeprom(0);
-    }
+    } */
 }
