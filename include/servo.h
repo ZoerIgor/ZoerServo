@@ -1,19 +1,20 @@
 #pragma once
-#ifndef _MAIN_
-    #define _MAIN_
+#ifndef _SERVO_
+    #define _SERVO_
     #include <Arduino.h>
     #include "GyverPID.h"
     #include <GyverPWM.h>
 
+    enum EnumSourse{DISABLE = 0, ENABLE = 1, CALIBRATE = 2, RESET = 3};
     class Source
     {
         public:
-            Source(byte pinPwm, byte pinEn);
+            Source(byte pinPwm, byte pinControl);
             void SetPinPwmMaxResolutionValue(int resolution);
             void SetPinEnResolution(int resolution);
             void Begin(bool useUart);
             void Listener();
-            byte GetEnable();
+            byte GetCommand();
             int GetTargetDeg();
         private:
             void Welcoming();
@@ -28,8 +29,8 @@
             void Print(int numeric);
             void Print(char characteristic);
             bool _option, _sourse, _rotate, _calibrate, _uart;
-            byte _pinPwm, _pinEn;
-            int _pwmResolution = 1023, _enResolution = 256, _maxAngle = 360, _targetDeg = _maxAngle / 2;
+            byte _pinPwm, _pinControl;
+            int _pwmMaxResolution = 1023, _enResolution = 256, _maxAngle = 360, _targetDeg = _maxAngle / 2;
             String _buffer = "";
             #define DIR_SIZE 4
             String _dirOption[DIR_SIZE] = {"O", "o", "OPTIONS", "options"};
@@ -174,22 +175,22 @@
             public:
                 Encoder(byte pinPwm, int pwmResolution);
                 short GetCalibAngle();
-                void SetCalibAngle(short delta);
+                short SetCalibAngle(short delta);
                 short GetCurrentDeg();
             private:
                 byte _pinPwm;
                 short _calibAngle = 0;
-                int _pwmResolution;
+                int _pwmMaxResolution;
                 float _degrees;
         };
-    class Servo
+    class MotorDriver
     {
         public:
-            Servo(byte pinEn, byte pinFw, byte pinBack, byte pinPwm);
+            MotorDriver(byte pinEn, byte pinFw, byte pinBack, byte pinPwm);
             void Enable(bool en);
-            void Listener(Source &sourse, Encoder &encoder, GyverPID &pid);
-        private:
             bool Direction(bool rightDir);
+            byte GetPwmPin(){return _pinPwm;}
+        private:
             byte _pinEn, _pinFw, _pinBack, _pinPwm;
             int _lastDeg;
             float _kp, _ki, _kd;
