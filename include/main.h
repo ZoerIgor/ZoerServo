@@ -9,7 +9,8 @@
     {
         public:
             Source(byte pinPwm, byte pinEn);
-            void SetPwmResolution(int resolution);
+            void SetPinPwmMaxResolutionValue(int resolution);
+            void SetPinEnResolution(int resolution);
             void Begin(bool useUart);
             void Listener();
             byte GetEnable();
@@ -28,7 +29,7 @@
             void Print(char characteristic);
             bool _option, _sourse, _rotate, _calibrate, _uart;
             byte _pinPwm, _pinEn;
-            int _pwmResolution = 1024, _maxAngle = 360, _targetDeg = _maxAngle / 2;
+            int _pwmResolution = 1023, _enResolution = 256, _maxAngle = 360, _targetDeg = _maxAngle / 2;
             String _buffer = "";
             #define DIR_SIZE 4
             String _dirOption[DIR_SIZE] = {"O", "o", "OPTIONS", "options"};

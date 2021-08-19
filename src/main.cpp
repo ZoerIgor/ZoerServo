@@ -10,9 +10,13 @@ Source::Source(byte pinPwm, byte pinEn)
     pinMode(_pinPwm, INPUT);
     pinMode(_pinEn, INPUT);
 }
-void Source::SetPwmResolution(int resolution)
+void Source::SetPinPwmMaxResolutionValue(int resolution)
 {
     _pwmResolution = resolution;
+}
+void Source::SetPinEnResolution(int resolution)
+{
+    _enResolution = resolution;
 }
 void Source::Begin(bool useUart)
 {
@@ -32,12 +36,12 @@ void Source::Listener()
 byte Source::GetEnable()
 {
     byte value = analogRead(_pinEn);
-    int quarter = _pwmResolution / 4;
+    int quarter = _enResolution / 4;
     if (value < quarter) //  Выключить драйвер сервопривода
     {
         return 0;
     }
-    else if( value > _pwmResolution - quarter) // Включить драйвер сервопривода
+    else if( value > _enResolution - quarter) // Включить драйвер сервопривода
     {
         return 1;
     }
@@ -57,7 +61,13 @@ int Source::GetTargetDeg()
     {
         return _targetDeg;
     }
-    return analogRead(_pinPwm);
+    int a = 127;
+    float base = 0.00;
+    for (int i = 0; i < a; i++)
+    {
+        base += map(analogRead(_pinPwm), 0, 1023, 1, 360);
+    }
+    return base / a;
 }
 byte Source::ReadSerial()
 {
@@ -407,7 +417,7 @@ Encoder::Encoder(byte pinPwm, int pwmResolution)
 {
     _pinPwm = pinPwm;
     _pwmResolution = pwmResolution;
-    _degrees = (_pwmResolution + 1.00) / 360;
+    _degrees = _pwmResolution / 360;
     pinMode(_pinPwm, INPUT);
 }
 short Encoder::GetCalibAngle()
@@ -424,7 +434,7 @@ short Encoder::GetCurrentDeg()
     float base = 0.00;
     for (int i = 0; i < a; i++)
     {
-        base += map(analogRead(_pinPwm), 0, _pwmResolution, 0, 359);
+        base += map(analogRead(_pinPwm), 0, _pwmResolution, 1, 360);
     }
     base = base / a;
     short sum = base + _calibAngle;
@@ -456,7 +466,7 @@ void Servo::Listener(Source &sourse, Encoder &encoder, GyverPID &pid)
     {
         pid.setpoint = sourse.GetTargetDeg();
         pid.input = encoder.GetCurrentDeg();
-        Serial.println(pid.input);
+        //Serial.println("TARGET: " + String(pid.setpoint, DEC) + "\tCURRENT: " + String(pid.input, DEC));
         if (pid.setpoint > pid.input)
         {
             Enable(true);
@@ -515,7 +525,7 @@ bool Servo::Direction(bool rightDir)
 }
 
 Source Uart(A1, A2);
-Encoder MyEncoder(A0, PWM_RESOLUTION);
+Encoder MyEncoder(A0, PWM_RESOLUTION + 1);
 Servo MyServo(6, 5, 4, 9);
 GyverPID MyPid(0, 0, 0, 1);
 
@@ -523,14 +533,13 @@ void setup()
 {
     Serial.begin(100000);
     PWM_resolution(9, 9, FAST_PWM);
-    Uart.Begin(true);
-    Uart.SetPwmResolution(256);
+    Uart.Begin(false);
     MyServo.Enable(true);
     MyPid.setMode(false);
 }
 
 void loop()
 {
-    Uart.Listener();
+    //Uart.Listener();
     MyServo.Listener(Uart, MyEncoder, MyPid);
 }
