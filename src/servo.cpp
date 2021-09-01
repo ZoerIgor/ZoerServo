@@ -1,11 +1,15 @@
 #include "servo.h"
 
-Source::Source(byte pinPwm, byte pinControl)
+Source::Source(byte pinPwm, byte pinEnable, byte pinCalibrate, byte pinReset)
 {
     _pinPwm = pinPwm;
-    _pinControl = pinControl;
+    _pinEnable = pinEnable;
+    _pinCalibrate = pinCalibrate;
+    _pinReset = pinReset;
     pinMode(_pinPwm, INPUT);
-    pinMode(_pinControl, INPUT);
+    pinMode(_pinEnable, INPUT);
+    pinMode(_pinCalibrate, INPUT);
+    pinMode(_pinReset, INPUT);
 }
 void Source::SetPinPwmMaxResolutionValue(int resolution)
 {
@@ -30,23 +34,57 @@ void Source::Listener()
         Buffer(ReadSerial());
     }
 }
-byte Source::GetCommand()
+bool Source::GetEnable()
 {
-    int value = analogRead(_pinControl);
-    int quarter = _enResolution / 4;
-    if (value < quarter) //  Выключить драйвер сервопривода
+    return (_uart) ? _enable : digitalRead(_pinEnable);
+}
+bool Source::GetCalibrate()
+{
+    bool sig = (_uart) ? _calibrate : digitalRead(_pinCalibrate);
+    if (sig)
     {
-        return EnumSourse::DISABLE;
+        if (sig == _prevCalib)
+        {
+            return false;
+        }
+        else
+        {
+            _prevCalib = true;
+            return true;
+        }
     }
-    else if( value > quarter && value < quarter * 2) // Включить драйвер сервопривода
+    else
     {
-        return EnumSourse::ENABLE;
+        if (_prevCalib)
+        {
+            _prevCalib = false;
+        }
+        return false;
     }
-    else if( value > quarter * 2 && value < quarter * 3) // Активировать режим калибровки энкодера
+}
+bool Source::GetReset()
+{
+    bool sig = (_uart) ? _reset : digitalRead(_pinReset);
+    if (sig)
     {
-        return EnumSourse::CALIBRATE;
+        if (sig == _prevReset)
+        {
+            return false;
+        }
+        else
+        {
+            _prevReset = true;
+            return true;
+        }
     }
-    return EnumSourse::RESET; // Сброс угла калибровки энкодера
+    else
+    {
+        if (_prevReset)
+        {
+            _prevReset = false;
+        }
+        return false;
+    }
 }
 void Source::Welcoming()
 {
@@ -98,55 +136,65 @@ void Source::Buffer(byte ascii)
                     Print("SOURSE");
                     goto end;
                 }
-                if (_option && CommandSearch(_dirRotate)) // Меню выбора угла поворота
-                {
-                    _rotate = true;
-                    Print("ROTATE");
-                    goto end;
-                }
                 if (_option && CommandSearch(_dirCalibrate)) // Калибровка среднего положения
                 {
+                    _enable = false;
                     _calibrate = true;
                     Print("CALIBRATE");
+                    Print("OPTIONS");
                     goto end;
                 }
-                if (_option && !_sourse && !_rotate && CommandSearch(_dirBack)) // Терминал
+                if (_option && CommandSearch(_dirReset)) // Сброс калибровки среднего положения
                 {
-                    _option = false;
-                    Print("TERMINAL");
+                    _enable = false;
+                    _reset = true;
+                    Print("RESET");
+                    Print("OPTIONS");
                     goto end;
                 }
-                if (_sourse && CommandSearch(_dirBack)) // Меню опций
+                if (_option && _sourse && CommandSearch(_dirBack)) // Меню опций
                 {
                     _sourse = false;
                     Print("OPTIONS");
                     goto end;
                 }
-                if (_rotate && CommandSearch(_dirBack)) // Меню опций
+                if (_option && CommandSearch(_dirBack)) // Терминал
                 {
-                    _rotate = false;
-                    Print("OPTIONS");
-                    goto end;
-                }
-                if (_calibrate && CommandSearch(_dirBack)) // Меню опций
-                {
-                    _calibrate = false;
-                    Print("OPTIONS");
+                    _option = false;
+                    if (_calibrate)
+                    {
+                        _enable = true;
+                        _calibrate = false;
+                    }
+                    if (_reset)
+                    {
+                        _enable = true;
+                        _reset = false;
+                    }
+                    Print("TERMINAL");
                     goto end;
                 }
                 if (CommandSearch(_dirExit)) // Терминал
                 {
                     _option = false;
                     _sourse = false;
-                    _rotate = false;
-                    _calibrate = false;
+                    if (_calibrate)
+                    {
+                        _enable = true;
+                        _calibrate = false;
+                    }
+                    if (_reset)
+                    {
+                        _enable = true;
+                        _reset = false;
+                    }
                     Print("TERMINAL");
                     goto end;
                 }
                 if (_sourse && CommandSearch(_dirPwm)) // Источник PWM
                 {
                     _uart = false;
-                    Print("SOURSE");
+                    Print("END");
                     goto end;
                 }
                 if (_sourse && CommandSearch(_dirUart)) // Источник UART
@@ -155,17 +203,17 @@ void Source::Buffer(byte ascii)
                     Print("SOURSE");
                     goto end;
                 }
-                if (_rotate && IsNumeric()) // Диаппазон поворота сервопривода
+                if (_sourse && CommandSearch(_dirDisable)) // Отключить источник
                 {
-                    _maxAngle = _buffer.toInt();
-                    _targetDeg = _maxAngle / 2; // Перекалибровка положения при изменении диаппазона
-                    Print("ROTATE");
+                    _enable = !_enable;
+                    Print("SOURSE");
                     goto end;
                 }
                 if (_uart && IsNumeric()) // Указание угла для выполнения поворота
                 {
                     _targetDeg = _buffer.toInt();
-                    _targetDeg = (_targetDeg > _maxAngle) ? _maxAngle : _targetDeg;
+                    _targetDeg = (_targetDeg > 360) ? 360 : _targetDeg;
+                    _targetDeg = (_targetDeg <= 0) ? 1 : _targetDeg;
                     Print("MOVE TO");
                     Print("TERMINAL");
                     goto end;
@@ -341,7 +389,8 @@ void Source::Print(String dir)
         Serial.println("|_____________________________________________|");
         Serial.println();
         Serial.println(" - source");
-        Serial.println(" - rotate");
+        Serial.println(" - calibrate");
+        Serial.println(" - reset");
         Serial.println(" - back");
         Serial.println(" - exit");
         Serial.print(">");
@@ -354,21 +403,12 @@ void Source::Print(String dir)
         Serial.println("|_____________________________________________|");
         Serial.print(" Current sourse: ");
         Serial.println((_uart) ? "UART" : "PWM");
+        Serial.print(" Power:\t\t");
+        Serial.println((_enable) ? "ON" : "OFF");
         Serial.println();
         Serial.println(" - pwm");
         Serial.println(" - uart");
-        Serial.println(" - back");
-        Serial.println(" - exit");
-        Serial.print(">");
-    }
-    if (dir == "ROTATE")
-    {
-        Serial.println(" _____________________________________________");
-        Serial.println("|                                             |");
-        Serial.println("|          ENTER MAX ROTATION ENGLE:          |");
-        Serial.println("|_____________________________________________|");
-        Serial.println(" Current value: " + String(_maxAngle, DEC) + " (if 0 then infiniti)");
-        Serial.println();
+        Serial.println(" - disable");
         Serial.println(" - back");
         Serial.println(" - exit");
         Serial.print(">");
@@ -377,13 +417,15 @@ void Source::Print(String dir)
     {
         Serial.println(" _____________________________________________");
         Serial.println("|                                             |");
-        Serial.println("|            ENTER TARGET DEGREES:            |");
+        Serial.println("|               CALIBTARE ANGLE               |");
         Serial.println("|_____________________________________________|");
-        Serial.println(" Current degrees: " + String(_maxAngle, DEC));
-        Serial.println();
-        Serial.println(" - back");
-        Serial.println(" - exit");
-        Serial.print(">");
+    }
+    if (dir == "RESET")
+    {
+        Serial.println(" _____________________________________________");
+        Serial.println("|                                             |");
+        Serial.println("|           RESET CALIBTARE ANGLE             |");
+        Serial.println("|_____________________________________________|");
     }
     if (dir == "TERMINAL")
     {
@@ -403,6 +445,13 @@ void Source::Print(String dir)
         Serial.println("__________________");
         Serial.println("ENTER THE COMMAND:");
         Serial.print(">");
+    }
+    if (dir == "END")
+    {
+        Serial.println(" _____________________________________________");
+        Serial.println("|                                             |");
+        Serial.println("|             TERMINAL IS CLOSED              |");
+        Serial.println("|_____________________________________________|");
     }
 }
 void Source::Print(int numeric)
@@ -432,19 +481,32 @@ short Encoder::SetCalibAngle(short delta)
 }
 short Encoder::GetCurrentDeg()
 {
-    int a = 127;
     float base = 0.00;
-    for (int i = 0; i < a; i++)
+    for (int i = 0; i < _measureCount; i++)
     {
         base += map(analogRead(_pinPwm), 0, _pwmMaxResolution, 1, 360);
     }
-    base = base / a;
+    base = base / _measureCount;
     short sum = base + _calibAngle;
     if (sum > 360)
     {
         return sum - 360;
     }
+    else if (sum <= 0)
+    {
+        return 360 + sum;
+    }
     return sum;
+}
+short Encoder::GetBaseDeg()
+{
+    float base = 0.00;
+    for (int i = 0; i < _measureCount; i++)
+    {
+        base += map(analogRead(_pinPwm), 0, _pwmMaxResolution, 1, 360);
+    }
+    base = base / _measureCount;
+    return base;
 }
 
 MotorDriver::MotorDriver(byte pinEn, byte pinFw, byte pinBack, byte pinPwm)

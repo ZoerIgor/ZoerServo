@@ -9,12 +9,14 @@
     class Source
     {
         public:
-            Source(byte pinPwm, byte pinControl);
+            Source(byte pinPwm, byte pinEnable, byte pinCalibrate, byte pinReset);
             void SetPinPwmMaxResolutionValue(int resolution);
             void SetPinEnResolution(int resolution);
             void Begin(bool useUart);
             void Listener();
-            byte GetCommand();
+            bool GetEnable();
+            bool GetCalibrate();
+            bool GetReset();
             int GetTargetDeg();
         private:
             void Welcoming();
@@ -28,19 +30,20 @@
             void Print(String dir);
             void Print(int numeric);
             void Print(char characteristic);
-            bool _option, _sourse, _rotate, _calibrate, _uart;
-            byte _pinPwm, _pinControl;
-            int _pwmMaxResolution = 1023, _enResolution = 256, _maxAngle = 360, _targetDeg = _maxAngle / 2;
+            bool _option, _sourse, _calibrate, _uart, _reset, _prevCalib, _prevReset, _enable = true;
+            byte _pinPwm, _pinEnable, _pinCalibrate, _pinReset;
+            int _pwmMaxResolution = 1023, _enResolution = 256, _targetDeg = 180;
             String _buffer = "";
             #define DIR_SIZE 4
             String _dirOption[DIR_SIZE] = {"O", "o", "OPTIONS", "options"};
             String _dirSource[DIR_SIZE] = {"S", "s", "SOURCE", "source"};
-            String _dirRotate[DIR_SIZE] = {"R", "r", "ROTATE", "rotate"};
             String _dirCalibrate[DIR_SIZE] = {"C", "c", "CALIBRATE", "calibrate"};
+            String _dirReset[DIR_SIZE] = {"R", "r", "RESET", "reset"};
             String _dirBack[DIR_SIZE] = {"B", "b", "BACK", "back"};
             String _dirExit[DIR_SIZE] = {"E", "e", "EXIT", "exit"};
             String _dirPwm[DIR_SIZE] = {"P", "p", "PWM", "pwm"};
             String _dirUart[DIR_SIZE] = {"U", "u", "UART", "uart"};
+            String _dirDisable[DIR_SIZE] = {"D", "d", "DISABLE", "disable"};
             #define CONTROL_CHAR_NUL 0
             #define CONTROL_CHAR_SOH 1
             #define CONTROL_CHAR_STX 2
@@ -174,13 +177,15 @@
         {
             public:
                 Encoder(byte pinPwm, int pwmResolution);
+                void SetMeasureCount(int measureCount){_measureCount = measureCount;};
                 short GetCalibAngle();
                 short SetCalibAngle(short delta);
                 short GetCurrentDeg();
+                short GetBaseDeg();
             private:
                 byte _pinPwm;
                 short _calibAngle = 0;
-                int _pwmMaxResolution;
+                int _pwmMaxResolution, _measureCount = 127;
                 float _degrees;
         };
     class MotorDriver
