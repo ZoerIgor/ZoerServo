@@ -1,23 +1,15 @@
 #include "servo.h"
 
-Source::Source(byte pinPwm, byte pinEnable, byte pinCalibrate, byte pinReset)
+Source::Source(byte pinAdc, byte pinEnable, byte pinCalibrate, byte pinReset)
 {
-    _pinPwm = pinPwm;
+    _pinAdc = pinAdc;
     _pinEnable = pinEnable;
     _pinCalibrate = pinCalibrate;
     _pinReset = pinReset;
-    pinMode(_pinPwm, INPUT);
+    pinMode(_pinAdc, INPUT);
     pinMode(_pinEnable, INPUT);
     pinMode(_pinCalibrate, INPUT);
     pinMode(_pinReset, INPUT);
-}
-void Source::SetPinPwmMaxResolutionValue(int resolution)
-{
-    _pwmMaxResolution = resolution;
-}
-void Source::SetPinEnResolution(int resolution)
-{
-    _enResolution = resolution;
 }
 void Source::Begin(bool useUart)
 {
@@ -34,16 +26,16 @@ void Source::Listener()
         Buffer(ReadSerial());
     }
 }
-bool Source::GetEnable()
+bool Source::GetEnable(bool registerPin)
 {
-    return (_uart) ? _enable : digitalRead(_pinEnable);
+    return (_uart) ? _enable : registerPin;
 }
-bool Source::GetCalibrate()
+bool Source::GetCalibrate(bool registerPin)
 {
-    bool sig = (_uart) ? _calibrate : digitalRead(_pinCalibrate);
+    bool sig = (_uart) ? _calibrate : registerPin;
     if (sig)
     {
-        if (sig == _prevCalib)
+        if (_prevCalib)
         {
             return false;
         }
@@ -62,9 +54,19 @@ bool Source::GetCalibrate()
         return false;
     }
 }
-bool Source::GetReset()
+void Source::CalibrateUnlock(bool registerPin)
 {
-    bool sig = (_uart) ? _reset : digitalRead(_pinReset);
+    if (_prevCalib)
+    {
+        if (!(_uart) ? _calibrate : registerPin)
+        {
+            _prevCalib = false;
+        }
+    }
+}
+bool Source::GetReset(bool registerPin)
+{
+    bool sig = (_uart) ? _reset : registerPin;
     if (sig)
     {
         if (sig == _prevReset)
@@ -86,6 +88,16 @@ bool Source::GetReset()
         return false;
     }
 }
+void Source::ResetUnlock(bool registerPin)
+{
+    if (_prevReset)
+    {
+        if (!(_uart) ? _reset : registerPin)
+        {
+            _prevReset = false;
+        }
+    }
+}
 void Source::Welcoming()
 {
     Serial.println();
@@ -100,13 +112,12 @@ int Source::GetTargetDeg()
     {
         return _targetDeg;
     }
-    int a = 127;
     float base = 0.00;
-    for (int i = 0; i < a; i++)
+    for (int i = 0; i < _measureCount; i++)
     {
-        base += map(analogRead(_pinPwm), 0, 1023, 1, 360);
+        base += map(_adcValue, 0, _adcResolution, 1, 360);
     }
-    return base / a;
+    return base / _measureCount;
 }
 byte Source::ReadSerial()
 {
@@ -463,12 +474,12 @@ void Source::Print(char characteristic)
     Serial.print(characteristic);
 }
 
-Encoder::Encoder(byte pinPwm, int pwmResolution)
+Encoder::Encoder(byte pinAdc, int pwmResolution)
 {
-    _pinPwm = pinPwm;
-    _pwmMaxResolution = pwmResolution;
-    _degrees = _pwmMaxResolution / 360;
-    pinMode(_pinPwm, INPUT);
+    _pinAdc = pinAdc;
+    _adcResolution = pwmResolution;
+    _degrees = _adcResolution / 360;
+    pinMode(_pinAdc, INPUT);
 }
 short Encoder::GetCalibAngle()
 {
@@ -484,7 +495,7 @@ short Encoder::GetCurrentDeg()
     float base = 0.00;
     for (int i = 0; i < _measureCount; i++)
     {
-        base += map(analogRead(_pinPwm), 0, _pwmMaxResolution, 1, 360);
+        base += map(_adcValue, 0, _adcResolution, 1, 360);
     }
     base = base / _measureCount;
     short sum = base + _calibAngle;
@@ -503,10 +514,9 @@ short Encoder::GetBaseDeg()
     float base = 0.00;
     for (int i = 0; i < _measureCount; i++)
     {
-        base += map(analogRead(_pinPwm), 0, _pwmMaxResolution, 1, 360);
+        base += map(_adcValue, 0, _adcResolution, 1, 360);
     }
-    base = base / _measureCount;
-    return base;
+    return base / _measureCount;
 }
 
 MotorDriver::MotorDriver(byte pinEn, byte pinFw, byte pinBack, byte pinPwm)
@@ -520,9 +530,9 @@ MotorDriver::MotorDriver(byte pinEn, byte pinFw, byte pinBack, byte pinPwm)
     pinMode(_pinBack, OUTPUT);
     pinMode(_pinPwm, OUTPUT);
 }
-void MotorDriver::Enable(bool en)
+void MotorDriver::Enable()
 {
-    digitalWrite(_pinEn, en);
+    digitalWrite(_pinEn, LOW);
 }
 bool MotorDriver::Direction(bool rightDir)
 {

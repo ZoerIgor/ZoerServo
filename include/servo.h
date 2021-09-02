@@ -5,19 +5,23 @@
     #include "GyverPID.h"
     #include <GyverPWM.h>
 
+    #define MEASURE_COUNT 31
     enum EnumSourse{DISABLE = 0, ENABLE = 1, CALIBRATE = 2, RESET = 3};
     class Source
     {
         public:
-            Source(byte pinPwm, byte pinEnable, byte pinCalibrate, byte pinReset);
-            void SetPinPwmMaxResolutionValue(int resolution);
-            void SetPinEnResolution(int resolution);
+            Source(byte pinAdc, byte pinEnable, byte pinCalibrate, byte pinReset);
+            void SetPinPwmMaxResolutionValue(int resolution){_adcResolution = resolution;};
+            void SetMeasureCount(int measureCount){_measureCount = measureCount;};
             void Begin(bool useUart);
             void Listener();
-            bool GetEnable();
-            bool GetCalibrate();
-            bool GetReset();
+            bool GetEnable(bool registerPin);
+            bool GetCalibrate(bool registerPin);
+            void CalibrateUnlock(bool registerPin);
+            bool GetReset(bool registerPin);
+            void ResetUnlock(bool registerPin);
             int GetTargetDeg();
+            volatile short _adcValue;
         private:
             void Welcoming();
             byte ReadSerial(); // Чтение буфера UART
@@ -31,8 +35,8 @@
             void Print(int numeric);
             void Print(char characteristic);
             bool _option, _sourse, _calibrate, _uart, _reset, _prevCalib, _prevReset, _enable = true;
-            byte _pinPwm, _pinEnable, _pinCalibrate, _pinReset;
-            int _pwmMaxResolution = 1023, _enResolution = 256, _targetDeg = 180;
+            byte _pinAdc, _pinEnable, _pinCalibrate, _pinReset;
+            int _adcResolution = 1023, _targetDeg = 180, _measureCount = MEASURE_COUNT;
             String _buffer = "";
             #define DIR_SIZE 4
             String _dirOption[DIR_SIZE] = {"O", "o", "OPTIONS", "options"};
@@ -176,23 +180,24 @@
     class Encoder
         {
             public:
-                Encoder(byte pinPwm, int pwmResolution);
+                Encoder(byte pinAdc, int pwmResolution);
                 void SetMeasureCount(int measureCount){_measureCount = measureCount;};
                 short GetCalibAngle();
                 short SetCalibAngle(short delta);
                 short GetCurrentDeg();
                 short GetBaseDeg();
+                volatile short _adcValue;
             private:
-                byte _pinPwm;
+                byte _pinAdc;
                 short _calibAngle = 0;
-                int _pwmMaxResolution, _measureCount = 127;
+                int _adcResolution, _measureCount = MEASURE_COUNT;
                 float _degrees;
         };
     class MotorDriver
     {
         public:
             MotorDriver(byte pinEn, byte pinFw, byte pinBack, byte pinPwm);
-            void Enable(bool en);
+            void Enable();
             bool Direction(bool rightDir);
             byte GetPwmPin(){return _pinPwm;}
         private:
